@@ -1019,18 +1019,14 @@ impl WitOpts {
                     let packages_with_same_name = &names[&pkg.name.name];
                     let packages_with_same_namespace = packages_with_same_name[&pkg.name.namespace];
                     let stem = if packages_with_same_name.len() == 1 {
+                        let mut pkg_name = pkg.name.borrowed().without_namespace();
                         if packages_with_same_namespace == 1 {
-                            pkg.name.name.clone()
-                        } else {
-                            pkg.name
-                                .version
-                                .as_ref()
-                                .map(|ver| format!("{}@{}", pkg.name.name, ver))
-                                .unwrap_or_else(|| pkg.name.name.clone())
+                            pkg_name = pkg_name.without_version()
                         }
+                        pkg_name.to_string()
                     } else {
                         if packages_with_same_namespace == 1 {
-                            format!("{}:{}", pkg.name.namespace, pkg.name.name)
+                            pkg.name.borrowed().without_version().to_string()
                         } else {
                             pkg.name.to_string()
                         }

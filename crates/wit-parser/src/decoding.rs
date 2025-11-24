@@ -316,9 +316,9 @@ impl ComponentInfo {
             // not otherwise encoded in a binary component. This theoretically
             // shouldn't cause issues, however.
             name: PackageName {
-                namespace: "root".to_string(),
+                namespace: vec!["root".to_string()],
+                name: vec!["component".to_string()],
                 version: None,
-                name: "component".to_string(),
             },
             docs: Default::default(),
             worlds: [(world_name.to_string(), world)].into_iter().collect(),
@@ -1839,8 +1839,8 @@ pub(crate) trait InterfaceNameExt {
 impl InterfaceNameExt for wasmparser::names::InterfaceName<'_> {
     fn to_package_name(&self) -> PackageName {
         PackageName {
-            namespace: self.namespace().to_string(),
-            name: self.package().to_string(),
+            namespace: self.namespace().map(String::from).collect(),
+            name: self.package().map(String::from).collect(),
             version: self.version(),
         }
     }

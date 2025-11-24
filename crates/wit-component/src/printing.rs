@@ -119,9 +119,8 @@ impl<O: Output> WitPrinter<O> {
         self.print_docs(&pkg.docs);
         self.output.keyword("package");
         self.output.str(" ");
-        self.print_name_type(&pkg.name.namespace, TypeKind::NamespaceDeclaration);
-        self.output.str(":");
-        self.print_name_type(&pkg.name.name, TypeKind::PackageNameDeclaration);
+        self.print_namespace_type(&pkg.name.namespace, TypeKind::NamespaceDeclaration);
+        self.print_package_name_type(&pkg.name.name, TypeKind::PackageNameDeclaration);
         if let Some(version) = &pkg.name.version {
             self.print_name_type(&format!("@{version}"), TypeKind::VersionDeclaration);
         }
@@ -519,9 +518,8 @@ impl<O: Output> WitPrinter<O> {
             self.print_name_type(iface.name.as_ref().unwrap(), TypeKind::InterfacePath);
         } else {
             let pkg = &resolve.packages[iface.package.unwrap()].name;
-            self.print_name_type(&pkg.namespace, TypeKind::NamespacePath);
-            self.output.str(":");
-            self.print_name_type(&pkg.name, TypeKind::PackageNamePath);
+            self.print_namespace_type(&pkg.namespace, TypeKind::NamespacePath);
+            self.print_package_name_type(&pkg.name, TypeKind::PackageNamePath);
             self.output.str("/");
             self.print_name_type(iface.name.as_ref().unwrap(), TypeKind::InterfacePath);
             if let Some(version) = &pkg.version {
@@ -1067,6 +1065,24 @@ impl<O: Output> WitPrinter<O> {
         }
 
         Ok(())
+    }
+
+    fn print_namespace_type(&mut self, namespace: &Vec<String>, kind: TypeKind) {
+        for namespace_part in namespace {
+            self.print_name_type(namespace_part, kind);
+            self.output.str(":");
+        }
+    }
+
+    fn print_package_name_type(&mut self, name: &Vec<String>, kind: TypeKind) {
+        let mut name_iter = name.iter();
+        if let Some(name_part) = name_iter.next() {
+            self.print_name_type(name_part, kind);
+            for name_part in name_iter {
+                self.output.str("/");
+                self.print_name_type(name_part, kind);
+            }
+        }
     }
 
     fn escape_name(name: &str) -> Cow<'_, str> {

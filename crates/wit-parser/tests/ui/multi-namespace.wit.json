@@ -1,0 +1,34 @@
+{
+  "worlds": [],
+  "interfaces": [
+    {
+      "name": "foo",
+      "types": {},
+      "functions": {},
+      "package": 0
+    },
+    {
+      "name": "bar",
+      "types": {},
+      "functions": {},
+      "package": 1
+    }
+  ],
+  "types": [],
+  "packages": [
+    {
+      "name": "a:name-space:of:many:words",
+      "interfaces": {
+        "foo": 0
+      },
+      "worlds": {}
+    },
+    {
+      "name": "a:nested-and-version:name:space@1.2.3",
+      "interfaces": {
+        "bar": 1
+      },
+      "worlds": {}
+    }
+  ]
+}

@@ -159,9 +159,15 @@ pub enum PackageItem {
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
 pub struct PackageName {
     /// A namespace such as `wasi` in `wasi:foo/bar`
-    namespace: String,
-    /// The kebab-name of this package, which is always specified.
-    name: Ident,
+    /// or `the:nested:namespace` in `the:nested:namespace:package/item`.
+    /// Each namespace part is followed by a colon.
+    /// A package namespace must include at least one part.
+    namespace: Vec<String>,
+    /// The (possibly nested) kebab-name of this package, such as `foo` in `wasi:foo/bar`
+    /// or `the/nested/package` in `namespace:the/nested/package/item`.
+    /// Name parts are separated by slashes.
+    /// A package name must include at least one part.
+    name: Vec<Ident>,
     /// Optional major/minor version information.
     version: Option<Version>,
 }
@@ -169,31 +175,31 @@ pub struct PackageName {
 impl PackageName {
     /// Create a new instance of `PackageName`
     pub fn new(
-        namespace: impl Into<String>,
-        name: impl Into<Ident>,
+        namespace: impl IntoIterator<Item = String>,
+        name: impl IntoIterator<Item = Ident>,
         version: Option<Version>,
     ) -> Self {
         Self {
-            namespace: namespace.into(),
-            name: name.into(),
+            namespace: namespace.into_iter().collect(),
+            name: name.into_iter().collect(),
             version,
         }
     }
 
-    pub fn namespace(&self) -> &str {
+    pub fn namespace(&self) -> &Vec<String> {
         &self.namespace
     }
 
-    pub fn set_namespace(&mut self, namespace: impl Into<String>) {
-        self.namespace = namespace.into();
+    pub fn set_namespace(&mut self, namespace: impl IntoIterator<Item = String>) {
+        self.namespace = namespace.into_iter().collect();
     }
 
-    pub fn name(&self) -> &Ident {
+    pub fn name(&self) -> &Vec<Ident> {
         &self.name
     }
 
-    pub fn set_name(&mut self, name: impl Into<Ident>) {
-        self.name = name.into()
+    pub fn set_name(&mut self, name: impl IntoIterator<Item = Ident>) {
+        self.name = name.into_iter().collect();
     }
 
     pub fn version(&self) -> Option<&Version> {
@@ -213,10 +219,46 @@ impl From<PackageName> for String {
 
 impl fmt::Display for PackageName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.namespace, self.name)?;
-        if let Some(version) = &self.version {
-            write!(f, "@{version}")?;
-        }
-        Ok(())
+        fmt_package_name(
+            f,
+            self.namespace.iter().map(String::as_str),
+            self.name.iter().map(Ident::raw_name),
+            &self.version,
+        )
     }
+}
+
+/// Helper function to format package names or interface IDs,
+/// which follow the same pattern: `namespace:parts:name/parts[/interface-name][@version]`.
+///
+/// In the case of interface IDs,
+/// simply append the interface name to the end of the package name iterator.
+pub(crate) fn fmt_package_name<
+    'a,
+    W: fmt::Write,
+    NS: Iterator<Item = &'a str>,
+    N: Iterator<Item = &'a str>,
+    V: fmt::Display,
+>(
+    dst: &mut W,
+    namespace: NS,
+    mut name: N,
+    version: &Option<V>,
+) -> fmt::Result {
+    for namespace_part in namespace {
+        write!(dst, "{namespace_part}:")?;
+    }
+
+    if let Some(name_part) = name.next() {
+        dst.write_str(name_part)?;
+        for name_part in name {
+            write!(dst, "/{name_part}")?;
+        }
+    }
+
+    if let Some(version) = version {
+        write!(dst, "@{version}")?;
+    }
+
+    Ok(())
 }

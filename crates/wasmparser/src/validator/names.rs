@@ -133,6 +133,12 @@ impl fmt::Display for KebabStr {
     }
 }
 
+impl From<&KebabStr> for String {
+    fn from(s: &KebabStr) -> String {
+        String::from(&s.0)
+    }
+}
+
 impl ToOwned for KebabStr {
     type Owned = KebabString;
 
@@ -518,31 +524,27 @@ impl<'a> InterfaceName<'a> {
         self.0
     }
 
-    /// Returns the `a:b` in `a:b:c/d/e`
-    pub fn namespace(&self) -> &'a KebabStr {
-        let colon = self.0.rfind(':').unwrap();
-        KebabStr::new_unchecked(&self.0[..colon])
+    /// Returns `["a", "b"]` for `a:b:c/d/e`
+    pub fn namespace(&self) -> impl Iterator<Item = &'a KebabStr> {
+        let final_colon = self.0.rfind(':').unwrap();
+        self.0[..final_colon]
+            .split(':')
+            .map(KebabStr::new_unchecked)
     }
 
-    /// Returns the `c` in `a:b:c/d/e`
-    pub fn package(&self) -> &'a KebabStr {
-        let colon = self.0.rfind(':').unwrap();
-        let slash = self.0.find('/').unwrap();
-        KebabStr::new_unchecked(&self.0[colon + 1..slash])
+    /// Returns `["c", "d"]` for `a:b:c/d/e`
+    pub fn package(&self) -> impl Iterator<Item = &'a KebabStr> {
+        let final_slash = self.0.rfind('/').unwrap();
+        let final_colon = self.0[0..final_slash].rfind(':').unwrap();
+        self.0[final_colon + 1..final_slash]
+            .split('/')
+            .map(KebabStr::new_unchecked)
     }
 
-    /// Returns the `d` in `a:b:c/d/e`.
+    /// Returns the `e` in `a:b:c/d/e`.
     pub fn interface(&self) -> &'a KebabStr {
-        let projection = self.projection();
-        let slash = projection.find('/').unwrap_or(projection.len());
-        KebabStr::new_unchecked(&projection[..slash])
-    }
-
-    /// Returns the `d/e` in `a:b:c/d/e`
-    pub fn projection(&self) -> &'a KebabStr {
-        let slash = self.0.find('/').unwrap();
-        let at = self.0.find('@').unwrap_or(self.0.len());
-        KebabStr::new_unchecked(&self.0[slash + 1..at])
+        let final_slash = self.0.rfind('/').unwrap();
+        KebabStr::new_unchecked(&self.0[final_slash + 1..])
     }
 
     /// Returns the `1.2.3` in `a:b:c/d/e@1.2.3`

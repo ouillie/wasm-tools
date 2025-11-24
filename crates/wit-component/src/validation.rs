@@ -2347,8 +2347,8 @@ impl NameMangling for Legacy {
 
         // Prioritize an exact match based on versions, so try that first.
         let pkgname = PackageName {
-            namespace: name.namespace().to_string(),
-            name: name.package().to_string(),
+            namespace: name.namespace().map(String::from).collect(),
+            name: name.package().map(String::from).collect(),
             version: name.version(),
         };
         if let Some(pkg) = resolve.package_names.get(&pkgname) {

@@ -274,21 +274,21 @@ impl<'a> AstItem<'a> {
 struct PackageName<'a> {
     docs: Docs<'a>,
     span: Span,
-    namespace: Id<'a>,
+    namespace: Vec<Id<'a>>,
     name: Id<'a>,
     version: Option<(Span, Version)>,
 }
 
 impl<'a> PackageName<'a> {
     fn parse(tokens: &mut Tokenizer<'a>, docs: Docs<'a>) -> Result<Self> {
-        let namespace = parse_id(tokens)?;
-        tokens.expect(Token::Colon)?;
-        let name = parse_id(tokens)?;
+        let first_namespace_part = parse_id(tokens)?;
+        let namespace_span_start = first_namespace_part.span.start;
+        let (namespace, name) = parse_namespaced_name(first_namespace_part, tokens)?;
         let version = parse_opt_version(tokens)?;
         Ok(PackageName {
             docs,
             span: Span {
-                start: namespace.span.start,
+                start: namespace_span_start,
                 end: version
                     .as_ref()
                     .map(|(s, _)| s.end)
@@ -302,11 +302,45 @@ impl<'a> PackageName<'a> {
 
     fn package_name(&self) -> crate::PackageName {
         crate::PackageName {
-            namespace: self.namespace.name.to_string(),
-            name: self.name.name.to_string(),
+            namespace: self
+                .namespace
+                .iter()
+                .map(|id| id.name.to_string())
+                .collect(),
+            name: vec![self.name.name.to_string()],
             version: self.version.as_ref().map(|(_, v)| v.clone()),
         }
     }
+}
+
+fn parse_namespaced_name<'a>(
+    first_part: Id<'a>,
+    tokens: &mut Tokenizer<'a>,
+) -> Result<(Vec<Id<'a>>, Id<'a>)> {
+    let span_start = first_part.span.start;
+    let mut span_end = first_part.span.end;
+    // Parse colon-joined identifiers,
+    // assuming each identifier is part of the namespace,
+    // until there are no more colons.
+    let mut namespace = vec![first_part];
+    while tokens.eat(Token::Colon)? {
+        let next_part = parse_id(tokens)?;
+        span_end = next_part.span.end;
+        namespace.push(next_part);
+    }
+    // The name is simply the final part of the colon-joined identifiers.
+    let name = namespace.pop().unwrap();
+    // Make sure at least one namespace part was parsed.
+    if namespace.is_empty() {
+        bail!(Error::new(
+            Span {
+                start: span_start,
+                end: span_end
+            },
+            format!("package name must include a namespace"),
+        ));
+    }
+    Ok((namespace, name))
 }
 
 struct ToplevelUse<'a> {
@@ -590,10 +624,10 @@ enum UsePath<'a> {
 impl<'a> UsePath<'a> {
     fn parse(tokens: &mut Tokenizer<'a>) -> Result<Self> {
         let id = parse_id(tokens)?;
-        if tokens.eat(Token::Colon)? {
+        if tokens.peek(Token::Colon)? {
             // `foo:bar/baz@1.0`
-            let namespace = id;
-            let pkg_name = parse_id(tokens)?;
+            let span_start = id.span.start;
+            let (namespace, pkg_name) = parse_namespaced_name(id, tokens)?;
             tokens.expect(Token::Slash)?;
             let name = parse_id(tokens)?;
             let version = parse_opt_version(tokens)?;
@@ -601,7 +635,7 @@ impl<'a> UsePath<'a> {
                 id: PackageName {
                     docs: Default::default(),
                     span: Span {
-                        start: namespace.span.start,
+                        start: span_start,
                         end: pkg_name.span.end,
                     },
                     namespace,

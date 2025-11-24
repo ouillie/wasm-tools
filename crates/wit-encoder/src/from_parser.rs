@@ -49,7 +49,7 @@ impl<'a> Converter<'a> {
     fn convert_package_name(&self, package: &wit_parser::PackageName) -> PackageName {
         PackageName::new(
             package.namespace.clone(),
-            package.name.clone(),
+            package.name.clone().into_iter().map(Ident::from),
             package.version.clone(),
         )
     }
@@ -519,18 +519,22 @@ impl<'a> Converter<'a> {
                         .map(|package_id| self.resolve.packages.get(package_id).unwrap());
 
                     match package {
-                        Some(package) => Ident::new(format!(
-                            "{}:{}/{}{}",
-                            package.name.namespace,
-                            package.name.name,
-                            name,
-                            package
-                                .name
-                                .version
-                                .as_ref()
-                                .map(|version| format!("@{version}"))
-                                .unwrap_or_else(|| "".to_string())
-                        )),
+                        Some(package) => {
+                            let mut s = String::new();
+                            crate::package::fmt_package_name(
+                                &mut s,
+                                package.name.namespace.iter().map(String::as_str),
+                                package
+                                    .name
+                                    .name
+                                    .iter()
+                                    .map(String::as_str)
+                                    .chain([name.as_str()]),
+                                &package.name.version,
+                            )
+                            .unwrap();
+                            Ident::new(s)
+                        }
                         None => Ident::new(name.clone()),
                     }
                 }

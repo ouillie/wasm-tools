@@ -354,6 +354,15 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
+    pub fn peek(&self, expected: Token) -> Result<bool, Error> {
+        let mut other = self.clone();
+        match other.next()? {
+            Some((_span, found)) if expected == found => Ok(true),
+            Some(_) => Ok(false),
+            None => Ok(false),
+        }
+    }
+
     pub fn expect(&mut self, expected: Token) -> Result<Span, Error> {
         match self.next()? {
             Some((span, found)) => {

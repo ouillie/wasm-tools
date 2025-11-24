@@ -167,11 +167,24 @@ pub enum AstItem {
 #[cfg_attr(feature = "serde", serde(into = "String"))]
 pub struct PackageName {
     /// A namespace such as `wasi` in `wasi:foo/bar`
-    pub namespace: String,
-    /// The kebab-name of this package, which is always specified.
-    pub name: String,
+    /// or `the:nested:namespace` in `the:nested:namespace:package/item`.
+    /// Each namespace part is followed by a colon.
+    /// A package namespace must include at least one part.
+    pub namespace: Vec<String>,
+    /// The (possibly nested) kebab-name of this package, such as `foo` in `wasi:foo/bar`
+    /// or `the/nested/package` in `namespace:the/nested/package/item`.
+    /// Name parts are separated by slashes.
+    /// A package name must include at least one part.
+    pub name: Vec<String>,
     /// Optional major/minor version information.
     pub version: Option<Version>,
+}
+
+/// A borrowed version of [`PackageName`].
+pub struct PackageNameView<'a> {
+    pub namespace: Vec<&'a str>,
+    pub name: Vec<&'a str>,
+    pub version: Option<&'a Version>,
 }
 
 impl From<PackageName> for String {
@@ -184,12 +197,7 @@ impl PackageName {
     /// Returns the ID that this package name would assign the `interface` name
     /// specified.
     pub fn interface_id(&self, interface: &str) -> String {
-        let mut s = String::new();
-        s.push_str(&format!("{}:{}/{interface}", self.namespace, self.name));
-        if let Some(version) = &self.version {
-            s.push_str(&format!("@{version}"));
-        }
-        s
+        self.borrowed().subname(interface).to_string()
     }
 
     /// Determines the "semver compatible track" for the given version.
@@ -238,16 +246,88 @@ impl PackageName {
         }
         version.to_string()
     }
+
+    pub fn borrowed<'a>(&'a self) -> PackageNameView<'a> {
+        PackageNameView {
+            namespace: self.namespace.iter().map(String::as_str).collect(),
+            name: self.name.iter().map(String::as_str).collect(),
+            version: self.version.as_ref(),
+        }
+    }
 }
 
 impl fmt::Display for PackageName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.namespace, self.name)?;
-        if let Some(version) = &self.version {
-            write!(f, "@{version}")?;
-        }
-        Ok(())
+        fmt_package_name(
+            f,
+            self.namespace.iter().map(String::as_str),
+            self.name.iter().map(String::as_str),
+            &self.version,
+        )
     }
+}
+
+impl<'a> PackageNameView<'a> {
+    pub fn without_namespace(mut self) -> Self {
+        self.namespace = Vec::new();
+        self
+    }
+
+    pub fn without_version(mut self) -> Self {
+        self.version = None;
+        self
+    }
+
+    pub fn subname(mut self, name: &'a str) -> Self {
+        self.name.push(name);
+        self
+    }
+}
+
+impl<'a> fmt::Display for PackageNameView<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_package_name(
+            f,
+            self.namespace.clone().into_iter(),
+            self.name.clone().into_iter(),
+            &self.version,
+        )
+    }
+}
+
+/// Helper function to format package names or interface IDs,
+/// which follow the same pattern: `namespace:parts:name/parts[/interface-name][@version]`.
+///
+/// In the case of interface IDs,
+/// simply append the interface name to the end of the package name iterator.
+pub(crate) fn fmt_package_name<
+    'a,
+    W: fmt::Write,
+    NS: Iterator<Item = &'a str>,
+    N: Iterator<Item = &'a str>,
+    V: fmt::Display,
+>(
+    dst: &mut W,
+    namespace: NS,
+    mut name: N,
+    version: &Option<V>,
+) -> fmt::Result {
+    for namespace_part in namespace {
+        write!(dst, "{namespace_part}:")?;
+    }
+
+    if let Some(name_part) = name.next() {
+        dst.write_str(name_part)?;
+        for name_part in name {
+            write!(dst, "/{name_part}")?;
+        }
+    }
+
+    if let Some(version) = version {
+        write!(dst, "@{version}")?;
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]

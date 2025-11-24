@@ -1233,17 +1233,7 @@ package {name} is defined in two different locations:\n\
 
     /// Returns the ID of the specified `name` within the `pkg`.
     pub fn id_of_name(&self, pkg: PackageId, name: &str) -> String {
-        let package = &self.packages[pkg];
-        let mut base = String::new();
-        base.push_str(&package.name.namespace);
-        base.push_str(":");
-        base.push_str(&package.name.name);
-        base.push_str("/");
-        base.push_str(name);
-        if let Some(version) = &package.name.version {
-            base.push_str(&format!("@{version}"));
-        }
-        base
+        self.packages[pkg].name.borrowed().subname(name).to_string()
     }
 
     /// Returns the "canonicalized interface name" of the specified `name`
@@ -1253,18 +1243,19 @@ package {name} is defined in two different locations:\n\
     /// more information about this.
     pub fn canonicalized_id_of_name(&self, pkg: PackageId, name: &str) -> String {
         let package = &self.packages[pkg];
-        let mut base = String::new();
-        base.push_str(&package.name.namespace);
-        base.push_str(":");
-        base.push_str(&package.name.name);
-        base.push_str("/");
-        base.push_str(name);
-        if let Some(version) = &package.name.version {
-            base.push_str("@");
-            let string = PackageName::version_compat_track_string(version);
-            base.push_str(&string);
-        }
-        base
+        let mut result = String::new();
+        crate::fmt_package_name(
+            &mut result,
+            package.name.namespace.iter().map(String::as_str),
+            package.name.name.iter().map(String::as_str).chain([name]),
+            &package
+                .name
+                .version
+                .as_ref()
+                .map(PackageName::version_compat_track_string),
+        )
+        .unwrap();
+        result
     }
 
     /// Selects a world from among the packages in a `Resolve`.

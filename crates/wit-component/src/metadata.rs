@@ -75,8 +75,8 @@ impl Default for Bindgen {
         let mut resolve = Resolve::default();
         let package = resolve.packages.alloc(Package {
             name: PackageName {
-                namespace: "root".to_string(),
-                name: "root".to_string(),
+                namespace: vec!["root".to_string()],
+                name: vec!["root".to_string()],
                 version: None,
             },
             docs: Default::default(),
@@ -182,19 +182,21 @@ impl EncodingMap {
     }
 
     fn key(&self, resolve: &Resolve, key: &WorldKey, func: &str) -> String {
+        // TODO: Is this ambiguous? Given `namespace:foo/bar/baz`,
+        // could you tell if `baz` is a package name, an interface name, or a function name,
+        // based on context? Or should the syntax for nested package names be different?
         format!(
             "{}/{func}",
             match key {
                 WorldKey::Name(name) => name.to_string(),
                 WorldKey::Interface(id) => {
                     let iface = &resolve.interfaces[*id];
-                    let pkg = &resolve.packages[iface.package.unwrap()];
-                    format!(
-                        "{}:{}/{}",
-                        pkg.name.namespace,
-                        pkg.name.name,
-                        iface.name.as_ref().unwrap()
-                    )
+                    resolve.packages[iface.package.unwrap()]
+                        .name
+                        .borrowed()
+                        .without_version()
+                        .subname(iface.name.as_ref().unwrap())
+                        .to_string()
                 }
             }
         )

@@ -1,0 +1,15 @@
+package a:name-space:of:many:words;
+
+interface foo {
+  use a:nested-and-versioned:name:space/bar@1.2.3.{some-type};
+}
+
+package a:nested-and-versioned:name:space@1.2.3 {
+
+  interface bar {
+    record some-type {
+      x: u32,
+    }
+  }
+
+}
